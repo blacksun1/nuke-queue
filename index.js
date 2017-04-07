@@ -3,6 +3,7 @@ const Promise = require('bluebird').Promise;
 const _ = require('lodash');
 const assert = require('assert');
 const constants = require('./constants');
+const killEmAll = require('./kill-em-all');
 const Sonos = Promise.promisifyAll(require('node-sonos'));
 console.log('Searching for Sonos devices...');
 
@@ -29,7 +30,7 @@ function checkQueue(device, err, resp) {
         return;
     }
 
-    console.log('\nNuke queue');
+    killEmAll();
     device.flush((err) => {
         if (err) {
             console.error('device.flush done but with an error');
@@ -80,4 +81,3 @@ function handleError(errorType, err) {
 
 setImmediate(runSearch, 5000);
 const myInterval = setInterval(runSearch, 5000);
-
