@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports = exports = function() {
+module.exports = function() {
 
     console.log(`
                              \\         .  ./

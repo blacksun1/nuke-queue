@@ -2,14 +2,19 @@
   "name": "nuke-queue",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bluebird": "^3.5.0",
     "lodash": "^4.17.4",
     "node-sonos": "^0.12.4"
+  },
+  "devDependencies": {
+    "eslint": "^3.19.0"
   }
 }

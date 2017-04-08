@@ -1,26 +1,26 @@
-const Promise = require('bluebird').Promise;
+'use strict';
+
+const Promise = require('bluebird');
 
 const _ = require('lodash');
-const assert = require('assert');
 const constants = require('./constants');
 const killEmAll = require('./kill-em-all');
 const Sonos = Promise.promisifyAll(require('node-sonos'));
-console.log('Searching for Sonos devices...');
 
 
 let search;
 
-function checkQueue(device, err, resp) {
+async function checkQueue(device, err, queue) {
 
     if (err) {
         handleError('getQueue', err);
     }
 
     console.log('\n** QUEUE **\n');
-    _.each(resp.items, t => console.log(`Title:  ${t.title}\nArtist: ${t.artist}`));
+    _.each(queue.items, t => console.log(`Title:  ${t.title}\nArtist: ${t.artist}`));
 
-    const blacklisted = _(resp.items)
-                        .map(t => t.artist)
+    const blacklisted = _(queue.items)
+                        .map(track => track.artist)
                         .uniq()
                         .intersection(constants.blacklist)
                         .value();
@@ -40,22 +40,24 @@ function checkQueue(device, err, resp) {
     });
 }
 
-function deviceAvailable(device, model) {
+async function deviceAvailable(device) {
 
     console.log(`A device has been found: ${device.host}:${device.port}`);
 
-    device.getCurrentState(function (err, state) {
-
-        if (err) {
-            handleError('getCurrentState', err);
-        }
+    try {
+        const state = await device.getCurrentStateAsync();
 
         if (state === 'stopped') {
             console.log('Sonos is in the stopped state');
-        } else {
-            device.getQueue(checkQueue.bind(this, device));
+            return;
         }
-    });
+
+        return await device.getQueueAsync(() => checkQueue(device));
+
+    } catch (err) {
+
+        handleError('getCurrentState', err);
+    }
 }
 
 function runSearch() {
@@ -64,6 +66,7 @@ function runSearch() {
         search.destroy();
     }
 
+    console.log('Searching for Sonos devices...');
     console.log('Doing a search');
 
     search = Sonos.search();
@@ -80,4 +83,4 @@ function handleError(errorType, err) {
 }
 
 setImmediate(runSearch, 5000);
-const myInterval = setInterval(runSearch, 5000);
+setInterval(runSearch, 5000);
