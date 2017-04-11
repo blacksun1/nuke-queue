@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports.blacklist = [
+/*module.exports.blacklist = [
     'Pnau',
     'Lorde',
     'Clean Bandit',
@@ -52,4 +52,9 @@ module.exports.blacklist = [
     'Gryffin',
     'Marky Style',
     'Robot Heart',
+];*/
+module.exports.blacklist = [
+    'Bruno Mars',
+    'Ed Sheeran',
+    'Maroon 5',
 ];

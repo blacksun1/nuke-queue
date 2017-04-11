@@ -6,39 +6,21 @@ const _ = require('lodash');
 const constants = require('./constants');
 const killEmAll = require('./kill-em-all');
 const Sonos = Promise.promisifyAll(require('node-sonos'));
+const pinStatus = 'in';
+const Table = require('cli-table');
+
+
+let columnWidth = 80;
+
+if (process.stdout.isTTY) {
+    columnWidth = process.stdout.columns;
+    process.stdout.on('resize', () => {
+        columnWidth = process.stdout.columns;
+    });
+}
 
 
 let search;
-
-async function checkQueue(device, err, queue) {
-
-    if (err) {
-        handleError('getQueue', err);
-    }
-
-    console.log('\n** QUEUE **\n');
-    _.each(queue.items, t => console.log(`Title:  ${t.title}\nArtist: ${t.artist}`));
-
-    const blacklisted = _(queue.items)
-                        .map(track => track.artist)
-                        .uniq()
-                        .intersection(constants.blacklist)
-                        .value();
-
-    if (!blacklisted.length) {
-        console.log('\nAll good');
-        return;
-    }
-
-    killEmAll();
-    device.flush((err) => {
-        if (err) {
-            console.error('device.flush done but with an error');
-        } else {
-            console.log('Nuke queue done!');
-        }
-    });
-}
 
 async function deviceAvailable(device) {
 
@@ -47,17 +29,123 @@ async function deviceAvailable(device) {
     try {
         const state = await device.getCurrentStateAsync();
 
+        let currentTrack;
         if (state === 'stopped') {
             console.log('Sonos is in the stopped state');
+
             return;
+        } else if (state === 'playing') {
+            currentTrack = await device.currentTrackAsync();
         }
 
-        return await device.getQueueAsync(() => checkQueue(device));
+        await new Promise((resolve, reject) => {
+            device.getQueue((err, queue) => {
+
+                if (err) {
+                    console.log(`getQueue: ${err}`);
+                    return reject(err);
+                }
+
+                console.log(JSON.stringify(queue));
+
+                return checkQueue(device, queue)
+                    .then(resolve)
+                    .catch(reject);
+            });
+        });
+
+        if (currentTrack) {
+
+            console.log(`Currently playing track is: ${currentTrack.title}, ${currentTrack.artist} (${Math.round(currentTrack.position / currentTrack.duration * 100)}%)`);
+            if (constants.blacklist.some(artist => currentTrack.artist === artist)) {
+                console.log('Currently playing blacklisted artist');
+                await new Promise((resolve, reject) => {
+                    device.next((err, nexted) => {
+
+                        if (err) {
+                            return reject(new Error(`Could not reject: ${err.message}`));
+                        }
+
+                        if (!nexted) {
+                            return reject(new Error('Could not reject: no nexted'));
+                        }
+
+                        return resolve();
+                    });
+                });
+                console.log('Skipped track by blacklisted artist');
+            }
+        }
 
     } catch (err) {
 
         handleError('getCurrentState', err);
     }
+}
+
+async function checkQueue(device, queue) {
+
+    console.log('\n** QUEUE **\n');
+
+    const queueTable = new Table({
+        'colWidths': [4, Math.floor(columnWidth / 2) - 10, Math.floor(columnWidth / 2) - 10],
+        'head': ['#', 'Title', 'Artist'],
+    });
+
+    let index = 0;
+    queueTable.push(...queue.items.map((track) => {
+
+        index += 1;
+
+        return [index, track.title, track.artist];
+    }));
+
+    console.log(queueTable.toString());
+
+    const blacklisted = _(queue.items)
+                        .map(track => track.artist)
+                        .uniq()
+                        .intersection(constants.blacklist)
+                        .value();
+
+    if (!blacklisted.length) {
+
+        console.log('\nAll good');
+
+        return;
+    }
+
+    const blacklistedTable = new Table({
+        'colWidths': [4, Math.floor(columnWidth) - 10],
+        'head': ['#', 'Artist'],
+    });
+
+    index = 0;
+    blacklistedTable.push(...blacklisted.map((artist) => {
+
+        index += 1;
+
+        return [index, artist];
+    }));
+
+    console.log(blacklistedTable.toString());
+
+    if (pinStatus !== 'out') {
+        console.log('\nThe pin is in. Not going to fire yet');
+
+        return;
+    }
+
+    killEmAll();
+    await device.flushAsync()
+        .then(() => {
+
+            console.log('Nuke queue done!');
+        })
+        .catch((err) => {
+
+            console.error('device.flush done but with an error', err);
+        });
 }
 
 function runSearch() {
@@ -69,11 +157,15 @@ function runSearch() {
     console.log('Searching for Sonos devices...');
     console.log('Doing a search');
 
-    search = Sonos.search();
+    return new Promise((resolve, reject) => {
 
-    search.on('error', handleError.bind(null, 'Search'));
+        const search = Sonos.search(device => deviceAvailable(device)
+            .then(resolve)
+            .catch(reject)
+        );
 
-    search.on('DeviceAvailable', deviceAvailable);
+        search.on('error', err => reject(err));
+    });
 }
 
 function handleError(errorType, err) {

@@ -3,6 +3,7 @@ module.exports = {
         "es6": true,
         "node": true
     },
+    "parser": "babel-eslint",
     "extends": "eslint:recommended",
     "rules": {
         "accessor-pairs": "error",
@@ -95,7 +96,6 @@ module.exports = {
         "max-lines": "error",
         "max-nested-callbacks": "error",
         "max-params": "error",
-        "max-statements": "error",
         "max-statements-per-line": "error",
         "multiline-ternary": "error",
         "new-cap": "error",
@@ -237,7 +237,7 @@ module.exports = {
         "space-infix-ops": "error",
         "space-unary-ops": "error",
         "spaced-comment": "error",
-        "strict": "error",
+        "strict": "off",
         "symbol-description": "error",
         "template-curly-spacing": [
             "error",
