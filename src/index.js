@@ -24,39 +24,59 @@ let search;
 
 async function deviceAvailable(device) {
 
-    console.log(`A device has been found: ${device.host}:${device.port}`);
-
     try {
-        const state = await device.getCurrentStateAsync();
+        console.log(`A device has been found: ${device.host}:${device.port}`);
 
-        let currentTrack;
-        if (state === 'stopped') {
-            console.log('Sonos is in the stopped state');
+        let state;
+        try {
+            state = await device.getCurrentStateAsync();
 
-            return;
-        } else if (state === 'playing') {
-            currentTrack = await device.currentTrackAsync();
+            if (state === 'stopped') {
+                console.log('Sonos is in the stopped state');
+
+                return;
+            } else if (state !== 'playing') {
+                console.error('Unknown state');
+
+                return;
+            }
+        } catch (err) {
+            state = `Unknown (An error occured) - ${JSON.stringify(err)}.`;
         }
 
-        await new Promise((resolve, reject) => {
-            device.getQueue((err, queue) => {
+        let currentTrack;
+        try {
+            currentTrack = await device.currentTrackAsync();
+        } catch (err) {
+            console.log(`Couldn't get the current track: ${err.message}`);
+        }
 
-                if (err) {
-                    console.log(`getQueue: ${err}`);
-                    return reject(err);
-                }
+        try {
+            await new Promise((resolve, reject) => {
+                device.getQueue((err, queue) => {
 
-                console.log(JSON.stringify(queue));
+                    if (err) {
+                        return reject(err);
+                    }
 
-                return checkQueue(device, queue)
-                    .then(resolve)
-                    .catch(reject);
+                    console.log(JSON.stringify(queue));
+
+                    return checkQueue(device, queue)
+                        .then(resolve)
+                        .catch(reject);
+                });
             });
-        });
+        } catch (err) {
+            console.error(`Couldn't get the Queue: ${err.message}`);
+        }
 
         if (currentTrack) {
 
-            console.log(`Currently playing track is: ${currentTrack.title}, ${currentTrack.artist} (${Math.round(currentTrack.position / currentTrack.duration * 100)}%)`);
+            const currentPosition = currentTrack.position && currentTrack.duration
+                ? ` (${Math.round(currentTrack.position / currentTrack.duration * 100)})`
+                : '';
+
+            console.log(`Currently playing track is: ${currentTrack.title}, ${currentTrack.artist}${currentPosition}`);
             if (constants.blacklist.some(artist => currentTrack.artist === artist)) {
                 console.log('Currently playing blacklisted artist');
                 await new Promise((resolve, reject) => {
